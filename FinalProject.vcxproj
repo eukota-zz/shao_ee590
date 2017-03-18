@@ -31,9 +31,13 @@
   <ItemGroup>
     <ClCompile Include="ACProject.cpp" />
     <ClCompile Include="ocl_utils.cpp" />
+    <ClCompile Include="Tools.cpp" />
+    <ClCompile Include="Trie.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ocl_utils.h" />
+    <ClInclude Include="Tools.h" />
+    <ClInclude Include="Trie.h" />
   </ItemGroup>
   <ItemGroup>
     <Intel_OpenCL_Build_Rules Include="PFAC.cl" />

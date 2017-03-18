@@ -11,25 +11,21 @@
 #include <queue>
 #include <vector>
 #include <map>
-
+#include "Trie.h"
 #include "ocl_utils.h"
-
 #include <malloc.h> 
+#include "Tools.h"
+#include <CL/cl.h> 
+#include "Trie.h"
 
 
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS 
-#include <CL/cl.h> 
-
 #define SEPARATOR       ("----------------------------------------------------------------------\n") 
 #define INTEL_PLATFORM  "Intel(R) OpenCL" 
 #define BUF_SIZE 40000000
 
 
 using namespace std;
-
-const cl_char symbols[] = { ' ', ',', '.', '?', '!', '\'', '"', '(', ')', ';', ':', '-', '_' };
-const cl_int numOfSymbols = sizeof(symbols) / sizeof(cl_char);
-const cl_int ALPHA_SIZE = 26 + 10 + numOfSymbols + 1;
 
 cl_int err;                             // error code returned from api calls 
 cl_platform_id   platform = NULL;		// platform id 
@@ -55,115 +51,6 @@ float *elapsed = NULL;
 
 cl_int datasize = 1000000;
 
-struct node {
-	node* children[ALPHA_SIZE];
-	cl_bool isStop;
-	node* failure;
-	string value;
-	vector<string> results;
-};
-
-cl_int idxForChar(cl_char ch) {
-	if (ch >= 'a' && ch <= 'z') {
-		return ch - 'a';
-	}
-	if (ch >= 'A' && ch <= 'Z') {
-		return ch - 'A';
-	}
-	if (ch >= '0' && ch <= '9') {
-		return 26 + (ch - '0');
-	}
-	for (cl_int i = 0; i < numOfSymbols; i++) {
-		if (symbols[i] == ch) {
-			return 36 + i;
-		}
-	}
-	return ALPHA_SIZE - 1;
-}
-
-node* trie(vector<string> patterns) {
-	//create root node
-	node* root = new node();
-	root->value = "";
-	root->isStop = false;
-
-	//for loop for multi words
-	//insert node for pattern
-	for (cl_int i = 0; i < patterns.size(); i++) {
-		string word = patterns[i];
-		node* nodePtr = root;
-		//for loop single word length of word
-		//fill letters in node
-		for (cl_int j = 0; j < word.length(); j++) {
-			cl_char letter = word[j];
-			if (!nodePtr->children[idxForChar(letter)]) {
-				nodePtr->children[idxForChar(letter)] = new node();
-				string v = string(nodePtr->value).append(1, letter);
-				nodePtr->children[idxForChar(letter)]->value = v;
-			}
-			nodePtr = nodePtr->children[idxForChar(letter)]; //traversing down the tree
-		}
-		nodePtr->isStop = true;
-		nodePtr->results.push_back(word);
-	}
-
-	return root;
-}
-
-//void printTree(node* tree, string prefix) {
-//	if (!tree) return;
-//	cout << prefix << tree->value << "; failure node is " << (tree->failure ? tree->failure->value : "NULL") << endl;
-//	cout << prefix << "results: ";
-//	for (int i = 0; i < tree->results.size(); i++) {
-//		cout << tree->results[i];
-//	}
-//	cout << endl;
-//	for (int i = 0; i < ALPHA_SIZE; i++) {
-//		if (tree->children[i]) {
-//			printTree(tree->children[i], prefix + "  ");
-//		}
-//	}
-//}
-
-/**
-* Use BFS to establish failure transactions.
-*/
-void defineFailures(node* tree) {
-	if (!tree) return;
-	queue<node*> q;
-	tree->failure = NULL; // root node fails back to NULL
-						  // First-level children fail back to root
-						  // Push first-level children into queue to initialize queue state
-	for (cl_char ch = 'a'; ch <= 'z'; ch++) {
-		node* child = tree->children[idxForChar(ch)];
-		if (child) {
-			q.push(child);
-			child->failure = tree;
-		}
-	}
-	while (!q.empty()) {
-		node* parent = q.front();
-		for (cl_char ch = 'a'; ch <= 'z'; ch++) {
-			node* child = parent->children[idxForChar(ch)];
-			if (child) {
-				q.push(child);
-				// parent --ch--> child.
-				// [parent's failure node] --ch--> [child's failure node]
-				node* failureNode = parent->failure;
-				while (failureNode && !failureNode->children[idxForChar(ch)]) failureNode = failureNode->failure;
-				if (!failureNode) {
-					child->failure = tree;
-				}
-				else {
-					// If child's failure node is found, merge results from the failure node.
-					child->failure = failureNode->children[idxForChar(ch)];
-					child->results.insert(child->results.end(), child->failure->results.begin(), child->failure->results.end());
-				}
-			}
-		}
-		q.pop();
-	}
-}
 
 node* constructStateMachine(const char** patterns, cl_int numOfPatterns) {
 	vector<string> patternVector;
