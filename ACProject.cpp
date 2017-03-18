@@ -29,7 +29,7 @@ using namespace std;
 
 const cl_char symbols[] = { ' ', ',', '.', '?', '!', '\'', '"', '(', ')', ';', ':', '-', '_' };
 const cl_int numOfSymbols = sizeof(symbols) / sizeof(cl_char);
-const cl_int ALPHA_SIZE = 26 + 10 + numOfSymbols+1;
+const cl_int ALPHA_SIZE = 26 + 10 + numOfSymbols + 1;
 
 cl_int err;                             // error code returned from api calls 
 cl_platform_id   platform = NULL;		// platform id 
@@ -40,6 +40,8 @@ cl_program       program = NULL;		// compute program
 cl_kernel        kernel = NULL;			// compute kernel 
 cl_event		 prof_event = NULL;		// Profiling Event, measure the wait time
 
+const char* textChunk;
+const char* patternsHost;
 
 cl_mem bufferBuffer; // Stream text
 cl_mem bufferPatterns; // patterns
@@ -108,30 +110,30 @@ node* trie(vector<string> patterns) {
 	return root;
 }
 
-void printTree(node* tree, string prefix) {
-	if (!tree) return;
-	cout << prefix << tree->value << "; failure node is " << (tree->failure ? tree->failure->value : "NULL") << endl;
-	cout << prefix << "results: ";
-	for (int i = 0; i < tree->results.size(); i++) {
-		cout << tree->results[i];
-	}
-	cout << endl;
-	for (int i = 0; i < ALPHA_SIZE; i++) {
-		if (tree->children[i]) {
-			printTree(tree->children[i], prefix + "  ");
-		}
-	}
-}
+//void printTree(node* tree, string prefix) {
+//	if (!tree) return;
+//	cout << prefix << tree->value << "; failure node is " << (tree->failure ? tree->failure->value : "NULL") << endl;
+//	cout << prefix << "results: ";
+//	for (int i = 0; i < tree->results.size(); i++) {
+//		cout << tree->results[i];
+//	}
+//	cout << endl;
+//	for (int i = 0; i < ALPHA_SIZE; i++) {
+//		if (tree->children[i]) {
+//			printTree(tree->children[i], prefix + "  ");
+//		}
+//	}
+//}
 
 /**
- * Use BFS to establish failure transactions.
- */
+* Use BFS to establish failure transactions.
+*/
 void defineFailures(node* tree) {
 	if (!tree) return;
 	queue<node*> q;
 	tree->failure = NULL; // root node fails back to NULL
-	// First-level children fail back to root
-	// Push first-level children into queue to initialize queue state
+						  // First-level children fail back to root
+						  // Push first-level children into queue to initialize queue state
 	for (cl_char ch = 'a'; ch <= 'z'; ch++) {
 		node* child = tree->children[idxForChar(ch)];
 		if (child) {
@@ -174,14 +176,14 @@ node* constructStateMachine(const char** patterns, cl_int numOfPatterns) {
 }
 
 /**
- * Use an established state machine to scan the input text.
- * Input params:
- * - text: Input text to find matches in
- * - stateMachine: Pointer to the starting/current state in the state machine
- * - root: Root node of the state machine / trie tree. When no matches are possible, go back to the root node.
- * - locationOffset: Offset value for reporting matching locations.
- * - result: Map to store matching locations for patterns.
- */
+* Use an established state machine to scan the input text.
+* Input params:
+* - text: Input text to find matches in
+* - stateMachine: Pointer to the starting/current state in the state machine
+* - root: Root node of the state machine / trie tree. When no matches are possible, go back to the root node.
+* - locationOffset: Offset value for reporting matching locations.
+* - result: Map to store matching locations for patterns.
+*/
 void scanText(const char* text, node* stateMachine, cl_int locationOffset, map<string, vector<cl_int>> &result) {
 	node* ptr = stateMachine;
 	cl_int len = strlen(text);
@@ -445,8 +447,8 @@ void ClearAllMemory() {
 
 
 
-int main(int argc, char** argv){
-	
+int main(int argc, char** argv) {
+
 	cl_ulong start_time, end_time;			// Profiling Event Start and end Time
 	LARGE_INTEGER perfFrequency;
 	LARGE_INTEGER performanceCountNDRangeStart;
@@ -455,6 +457,7 @@ int main(int argc, char** argv){
 	cl_int* parNofPatterns = 0;
 	cl_int* parIndex = 0;
 
+	//Allocate space for input/output data
 	parNofPatterns = (cl_int*)_aligned_malloc(datasize, 4096);
 	parIndex = (cl_int*)_aligned_malloc(datasize, 4096);
 
@@ -465,6 +468,8 @@ int main(int argc, char** argv){
 	QueryPerformanceCounter(&performanceCountNDRangeStart);
 	cl_int maxPatternLength = 0;
 	ifstream patternInput("patterns.txt", ifstream::in);
+
+	//find largest pattern length
 	while (!patternInput.eof()) {
 		getline(patternInput, buffer);
 		cl_int len = buffer.size();
@@ -476,16 +481,19 @@ int main(int argc, char** argv){
 		}
 	}
 	patternInput.close();
-	
+
 	const char** patternsPtr = new const char*[patterns.size()];
 	for (cl_int i = 0; i < patterns.size(); i++) {
 		patternsPtr[i] = patterns[i].c_str();
 	}
+	patternsHost = (char*)_aligned_malloc(patterns.size(), 4096);
+	patternsHost = *patternsPtr;
 
 	node* stateMachine = constructStateMachine(patternsPtr, patterns.size());
 
 	ifstream fin("input.txt", ifstream::in);
 	ofstream fout("output sequential.txt", ifstream::out);
+	ofstream fpout("output parallel.txt", ifstream::out);
 	string input;
 	while (!fin.eof()) {
 		getline(fin, buffer);
@@ -501,21 +509,25 @@ int main(int argc, char** argv){
 	cl_int threadNumber = 2; //change
 	cl_int chunkSizeWithoutOverlap = (input.size() + threadNumber - 1) / threadNumber;
 	cl_int chunkSize = chunkSizeWithoutOverlap + maxPatternLength - 1;
+	textChunk= (char*)_aligned_malloc(chunkSize * sizeof(char), 4096);
+
 	for (cl_int i = 0; i < threadNumber; i++) {
 		cl_int offset = chunkSizeWithoutOverlap * i;
-		string bufferChunk = input.substr(offset, chunkSize);
-		//fout << "Chunk " << i << " at length " << bufferChunk.size() << ":" << endl << bufferChunk << endl;
 
+		string bufferChunk = input.substr(offset, chunkSize);
+
+		//fout << "Chunk " << i << " at length " << bufferChunk.size() << ":" << endl << bufferChunk << endl;
+		textChunk = bufferChunk.c_str();
 
 		scanText(bufferChunk.c_str(), stateMachine, offset, result);
-		QueryPerformanceCounter(&performanceCountNDRangeStop);
-		QueryPerformanceFrequency(&perfFrequency);
-		auto elapsed = 1000.0f*(float)(performanceCountNDRangeStop.QuadPart - performanceCountNDRangeStart.QuadPart) / (float)perfFrequency.QuadPart;
+
 		// TODO pfac(bufferChunk.c_str(), patternsPtr, patterns.size(), /** output indicator */)
+		
 	}
 
+	
 	printf("Window API: running sequatial host code : \t%.2f ms", elapsed);
-	fout << "Time need for running sequential code : " <<elapsed<< " milliseconds" << endl;
+	fout << "Time need for running sequential code : " << elapsed << " milliseconds" << endl;
 
 
 	// S - Output matching results
@@ -601,8 +613,8 @@ int main(int argc, char** argv){
 	printf(SEPARATOR);
 	printf("\nCreating Buffer\n");
 
-	bufferBuffer = clCreateBuffer(context, CL_MEM_READ_ONLY, chunkSize, NULL, &err);
-	bufferPatterns = clCreateBuffer(context, CL_MEM_READ_ONLY, patterns.size(), NULL, &err);
+	bufferBuffer = clCreateBuffer(context, CL_MEM_READ_ONLY, chunkSize*sizeof(char), NULL, &err);
+	bufferPatterns = clCreateBuffer(context, CL_MEM_READ_ONLY, patterns.size()*sizeof(char), NULL, &err);
 	bufferNumberofPatterns = clCreateBuffer(context, CL_MEM_READ_ONLY, datasize, NULL, &err);
 	bufferIndex = clCreateBuffer(context, CL_MEM_READ_ONLY, datasize, NULL, &err);
 
@@ -619,6 +631,9 @@ int main(int argc, char** argv){
 	printf("\n");
 	printf(SEPARATOR);
 	printf("\nWrite Buffer\n");
+	int whatsize = sizeof(textChunk) * sizeof(char);
+	err = clEnqueueWriteBuffer(commands, bufferBuffer, CL_FALSE, 0, whatsize, textChunk, 0, NULL, NULL);
+	err |= clEnqueueWriteBuffer(commands, bufferPatterns, CL_FALSE, 0, sizeof(patternsHost)*sizeof(char), patternsHost, 0, NULL, NULL);
 
 	if (CL_SUCCESS != err)
 	{
@@ -761,6 +776,13 @@ int main(int argc, char** argv){
 	printf("\nRead output memory \n");
 	printf(SEPARATOR);
 
+	// S - Output matching results
+
+	for (cl_int i = 0; i < 6; i++) {
+		fpout << "Found " << parNofPatterns << " occurrences of " << parIndex << "; locations: ";
+		fout << endl;
+	}
+	fpout.close();
 
 
 	// Window API Time for Paralle codeSt
