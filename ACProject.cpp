@@ -328,33 +328,23 @@ void ClearAllMemory() {
 		clReleaseEvent(prof_event);
 	}
 
-
-	free(platform);
 }
 
 
-
-int main(int argc, char** argv) {
-
-	cl_ulong start_time, end_time;			// Profiling Event Start and end Time
-	LARGE_INTEGER perfFrequency;
-	LARGE_INTEGER performanceCountNDRangeStart;
-	LARGE_INTEGER performanceCountNDRangeStop;
-
-	cl_int* parNofPatterns = 0;
-	cl_int* parIndex = 0;
-
-	//Allocate space for input/output data
-	parNofPatterns = (cl_int*)_aligned_malloc(datasize, 4096);
-	parIndex = (cl_int*)_aligned_malloc(datasize, 4096);
-
+vector<string> patterns;
+ifstream patternInput("patterns.txt", ifstream::in);
+ifstream fin("input.txt", ifstream::in);
+cl_int threadNumber = 2; //change
+cl_int chunkSize = 0;
+//runs sequential code and then run parallel code
+int sequential()
+{
 	//  Read patterns from patterns.txt; one pattern per line.
 
-	vector<string> patterns;
+	
 	string buffer;
-	QueryPerformanceCounter(&performanceCountNDRangeStart);
 	cl_int maxPatternLength = 0;
-	ifstream patternInput("patterns.txt", ifstream::in);
+
 
 	//find largest pattern length
 	while (!patternInput.eof()) {
@@ -378,7 +368,7 @@ int main(int argc, char** argv) {
 
 	node* stateMachine = constructStateMachine(patternsPtr, patterns.size());
 
-	ifstream fin("input.txt", ifstream::in);
+
 	ofstream fout("output sequential.txt", ifstream::out);
 	ofstream fpout("output parallel.txt", ifstream::out);
 	string input;
@@ -393,10 +383,9 @@ int main(int argc, char** argv) {
 
 	map<string, vector<cl_int>> result;
 
-	cl_int threadNumber = 2; //change
 	cl_int chunkSizeWithoutOverlap = (input.size() + threadNumber - 1) / threadNumber;
-	cl_int chunkSize = chunkSizeWithoutOverlap + maxPatternLength - 1;
-	textChunk= (char*)_aligned_malloc(chunkSize * sizeof(char), 4096);
+	chunkSize = chunkSizeWithoutOverlap + maxPatternLength - 1;
+	textChunk = (char*)_aligned_malloc(chunkSize * sizeof(char), 4096);
 
 	for (cl_int i = 0; i < threadNumber; i++) {
 		cl_int offset = chunkSizeWithoutOverlap * i;
@@ -409,10 +398,10 @@ int main(int argc, char** argv) {
 		scanText(bufferChunk.c_str(), stateMachine, offset, result);
 
 		// TODO pfac(bufferChunk.c_str(), patternsPtr, patterns.size(), /** output indicator */)
-		
+
 	}
 
-	
+
 	printf("Window API: running sequatial host code : \t%.2f ms", elapsed);
 	fout << "Time need for running sequential code : " << elapsed << " milliseconds" << endl;
 
@@ -427,6 +416,18 @@ int main(int argc, char** argv) {
 		fout << endl;
 	}
 	fout.close();
+
+
+
+}
+
+
+int parallel() {
+
+	cl_ulong start_time, end_time;			// Profiling Event Start and end Time
+	LARGE_INTEGER perfFrequency;
+	LARGE_INTEGER performanceCountNDRangeStart;
+	LARGE_INTEGER performanceCountNDRangeStop;
 
 
 
@@ -658,19 +659,15 @@ int main(int argc, char** argv) {
 	//———————————————————————————————————————————————————
 	// STEP 12: Read the output buffer back to the host
 	//———————————————————————————————————————————————————
+
+	//Allocate space for input/output data
+	cl_int* parNofPatterns = parNofPatterns = (cl_int*)_aligned_malloc(datasize, 4096);;
+	cl_int* parIndex = parIndex = (cl_int*)_aligned_malloc(datasize, 4096);
+
 	clEnqueueReadBuffer(commands, bufferNumberofPatterns, CL_TRUE, 0, datasize, parNofPatterns, 0, NULL, NULL);
 	clEnqueueReadBuffer(commands, bufferIndex, CL_TRUE, 0, datasize, parIndex, 0, NULL, NULL);
 	printf("\nRead output memory \n");
 	printf(SEPARATOR);
-
-	// S - Output matching results
-
-	for (cl_int i = 0; i < 6; i++) {
-		fpout << "Found " << parNofPatterns << " occurrences of " << parIndex << "; locations: ";
-		fout << endl;
-	}
-	fpout.close();
-
 
 	// Window API Time for Paralle codeSt
 	auto elapsed = 1000.0f*(float)(performanceCountNDRangeStop.QuadPart - performanceCountNDRangeStart.QuadPart) / (float)perfFrequency.QuadPart;
