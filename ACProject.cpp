@@ -17,6 +17,7 @@
 #include "Tools.h"
 #include <CL/cl.h> 
 #include "Trie.h"
+#include "Stopwatch.h"
 
 
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS 
@@ -52,16 +53,6 @@ float *elapsed = NULL;
 cl_int datasize = 1000000;
 
 
-node* constructStateMachine(const char** patterns, cl_int numOfPatterns) {
-	vector<string> patternVector;
-	for (cl_int i = 0; i < numOfPatterns; i++) {
-		patternVector.push_back(string(patterns[i]));
-	}
-	node* stateMachine = trie(patternVector);
-	defineFailures(stateMachine);
-	return stateMachine;
-}
-
 /**
 * Use an established state machine to scan the input text.
 * Input params:
@@ -73,8 +64,8 @@ node* constructStateMachine(const char** patterns, cl_int numOfPatterns) {
 */
 void scanText(const char* text, node* stateMachine, cl_int locationOffset, map<string, vector<cl_int>> &result) {
 	node* ptr = stateMachine;
-	cl_int len = strlen(text);
-	for (cl_int i = 0; i < len; i++) {
+	size_t len = strlen(text);
+	for (size_t i = 0; i < len; i++) {
 		cl_char ch = text[i];
 
 		// While there is no valid transaction for ch, switch to the failure transaction for the current state.
@@ -92,7 +83,7 @@ void scanText(const char* text, node* stateMachine, cl_int locationOffset, map<s
 		ptr = ptr->children[idxForChar(ch)];
 		// If current node is a stop node, record all matches.
 		if (ptr->results.size()) {
-			for (cl_int j = 0; j < ptr->results.size(); j++) {
+			for (size_t j = 0; j < ptr->results.size(); j++) {
 				string pattern = ptr->results[j];
 				if (result.find(pattern) == result.end()) {
 					result[pattern] = {};
@@ -330,7 +321,6 @@ void ClearAllMemory() {
 
 }
 
-
 vector<string> patterns;
 ifstream patternInput("patterns.txt", ifstream::in);
 ifstream fin("input.txt", ifstream::in);
@@ -341,14 +331,11 @@ cl_int chunkSize = 0;
 
 int sequential()
 {
-	//  Read patterns from patterns.txt; one pattern per line.
-
-	
+	Stopwatch stopwatch;
+	stopwatch.Start();
+	// Read Patterns
 	string buffer;
 	cl_int maxPatternLength = 0;
-
-
-	//find largest pattern length
 	while (!patternInput.eof()) {
 		getline(patternInput, buffer);
 		cl_int len = buffer.size();
@@ -361,18 +348,15 @@ int sequential()
 	}
 	patternInput.close();
 
-	const char** patternsPtr = new const char*[patterns.size()];
-	for (cl_int i = 0; i < patterns.size(); i++) {
-		patternsPtr[i] = patterns[i].c_str();
-	}
-	patternsHost = (char*)_aligned_malloc(patterns.size(), 4096);
-	patternsHost = *patternsPtr;
-
-	node* stateMachine = constructStateMachine(patternsPtr, patterns.size());
-
-
+	// Create State Matchine Trie
+	stopwatch.Lap("Starting State Machine");
+	node* stateMachine = trie(patterns);
+	defineFailures(stateMachine);
+	stopwatch.Lap("State Machine Started");
+	//printTree(stateMachine, "prefix");
+	
+	// Output Files
 	ofstream fout("output sequential.txt", ifstream::out);
-	ofstream fpout("output parallel.txt", ifstream::out);
 	string input;
 	while (!fin.eof()) {
 		getline(fin, buffer);
@@ -403,9 +387,8 @@ int sequential()
 
 	}
 
-
-	printf("Window API: running sequatial host code : \t%.2f ms", elapsed);
-	fout << "Time need for running sequential code : " << elapsed << " milliseconds" << endl;
+	float seqTime = stopwatch.Stop("Completed Seqential");
+	fout << "Time need for running sequential code : " << seqTime << " milliseconds" << endl;
 
 
 	// S - Output matching results
@@ -428,10 +411,7 @@ int parallel() {
 
 	cl_ulong start_time, end_time;			// Profiling Event Start and end Time
 
-
-
-
-	//———————————————————————————————————————————————————
+											//———————————————————————————————————————————————————
 	// STEP 1: Discover and initialize the platforms
 	//———————————————————————————————————————————————————
 	// get Intel OpenCL platform 

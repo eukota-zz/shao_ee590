@@ -2,8 +2,12 @@
 #include <vector>
 #include "CL/cl.h"
 #include <queue>
+#include <string>
+#include <iostream>
 
 using namespace std;
+
+
 
 node* trie(std::vector<std::string> patterns) 
 {
@@ -23,7 +27,7 @@ node* trie(std::vector<std::string> patterns)
 			cl_char letter = word[j];
 			if (!nodePtr->children[idxForChar(letter)]) {
 				nodePtr->children[idxForChar(letter)] = new node();
-				string v = string(nodePtr->value).append(1, letter);
+				string v = nodePtr->value.append(1, letter);
 				nodePtr->children[idxForChar(letter)]->value = v;
 			}
 			nodePtr = nodePtr->children[idxForChar(letter)]; //traversing down the tree
@@ -35,20 +39,21 @@ node* trie(std::vector<std::string> patterns)
 	return root;
 }
 
-//void printTree(node* tree, string prefix) {
-//	if (!tree) return;
-//	cout << prefix << tree->value << "; failure node is " << (tree->failure ? tree->failure->value : "NULL") << endl;
-//	cout << prefix << "results: ";
-//	for (int i = 0; i < tree->results.size(); i++) {
-//		cout << tree->results[i];
-//	}
-//	cout << endl;
-//	for (int i = 0; i < ALPHA_SIZE; i++) {
-//		if (tree->children[i]) {
-//			printTree(tree->children[i], prefix + "  ");
-//		}
-//	}
-//}
+void printTree(node* tree, string prefix)
+{
+	if (!tree) return;
+	std::cout << prefix << tree->value << ";" << (tree->failure ? "F: " + tree->failure->value : "") << std::endl;
+	std::cout << prefix << "R: ";
+	for (int i = 0; i < tree->results.size(); i++) {
+		std::cout << tree->results[i] << ",";
+	}
+	std::cout << std::endl;
+	for (int i = 0; i < 50; i++) {
+		if (tree->children[i]) {
+			printTree(tree->children[i], prefix + "  ");
+		}
+	}
+}
 
 
 /**

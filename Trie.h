@@ -7,6 +7,7 @@
 
 
 struct node {
+
 	node* children[50];
 	cl_bool isStop;
 	node* failure;
@@ -16,3 +17,4 @@ struct node {
 
 void defineFailures(node* tree);
 node* trie(std::vector<std::string> patterns);
+void printTree(node* tree, std::string prefix="");

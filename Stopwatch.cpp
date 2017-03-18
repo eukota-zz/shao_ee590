@@ -1,4 +1,5 @@
 #include <iostream>
+#include <string>
 #include "Stopwatch.h"
 #include "profileapi.h"
 
@@ -28,15 +29,19 @@ void Stopwatch::Start()
 	std::cout << "Started Timer" << std::endl;
 }
 
-void Stopwatch::Lap(const std::string& annotation)
+float Stopwatch::Lap(const std::string& annotation)
 {
 	LARGE_INTEGER prevLapTime = LapTime;
 	QueryPerformanceCounter(&LapTime);
-	std::cout << "Lap Time: " << annotation.c_str() << ": " << GetTimeDiffInMS(prevLapTime, LapTime) << " ms" << std::endl;
+	float retVal = GetTimeDiffInMS(prevLapTime, LapTime);
+	std::cout << "Lap Time: " << annotation.c_str() << ": " << retVal << " ms" << std::endl;
+	return retVal;
 }
 
-void Stopwatch::Stop(const std::string& annotation)
+float Stopwatch::Stop(const std::string& annotation)
 {
 	QueryPerformanceCounter(&StopTime);
-	std::cout << "Total Time: " << annotation.c_str() << GetTimeDiffInMS(StartTime, StopTime) << " ms" << std::endl;
+	float retVal = GetTimeDiffInMS(StartTime, StopTime);
+	std::cout << "Total Time: " << annotation << " " << retVal << " ms" << std::endl;
+	return retVal;
 }

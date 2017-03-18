@@ -15,6 +15,6 @@ public:
 	Stopwatch();
 
 	void Start();
-	void Lap(const std::string& annotation);
-	void Stop(const std::string& annotation);
+	float Lap(const std::string& annotation);
+	float Stop(const std::string& annotation);
 };
