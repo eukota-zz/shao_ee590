@@ -616,7 +616,6 @@ int parallel() {
 	printf("Enqueue the kernel for execution \n");
 
 	// Timing the clEnqueueNDRangeKernel call and timing information will be stored in timing_event
-	QueryPerformanceCounter(&performanceCountNDRangeStart);
 	err = clEnqueueNDRangeKernel(commands, kernel, dim, NULL, global, NULL, 0, NULL, &prof_event);
 	if (CL_SUCCESS != err)
 	{
@@ -667,25 +666,6 @@ int parallel() {
 	clEnqueueReadBuffer(commands, bufferIndex, CL_TRUE, 0, datasize, parIndex, 0, NULL, NULL);
 	printf("\nRead output memory \n");
 	printf(SEPARATOR);
-
-	// Window API Time for Paralle codeSt
-	
-	printf("Window API: running Kernel code : \t%.2f ms", elapsed);
-	printf("\n");
-
-
-	// Window API Time for sequential code
-	QueryPerformanceCounter(&performanceCountNDRangeStart);
-
-	//sequential code
-
-
-	QueryPerformanceCounter(&performanceCountNDRangeStop);
-	QueryPerformanceFrequency(&perfFrequency);
-
-	elapsed = 1000.0f*(float)(performanceCountNDRangeStop.QuadPart - performanceCountNDRangeStart.QuadPart) / (float)perfFrequency.QuadPart;
-
-
 
 	//———————————————————————————————————————————————————
 	// STEP 13: Release OpenCL resources

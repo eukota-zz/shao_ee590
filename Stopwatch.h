@@ -1,5 +1,5 @@
 #pragma once
-#include "winnt.h"
+#include "Windows.h"
 #include <vector>
 
 class Stopwatch
