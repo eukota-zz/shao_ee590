@@ -1,2 +1,3 @@
 #pragma once
-int run();
+int parallel();
+int sequential();
