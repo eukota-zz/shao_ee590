@@ -32,12 +32,14 @@
     <ClCompile Include="ACProject.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="ocl_utils.cpp" />
+    <ClCompile Include="Stopwatch.cpp" />
     <ClCompile Include="Tools.cpp" />
     <ClCompile Include="Trie.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ACproject.h" />
     <ClInclude Include="ocl_utils.h" />
+    <ClInclude Include="Stopwatch.h" />
     <ClInclude Include="Tools.h" />
     <ClInclude Include="Trie.h" />
   </ItemGroup>
@@ -172,7 +174,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Intel_OpenCL_Build_Rules>
-      <Device>1</Device>
+      <Device>0</Device>
     </Intel_OpenCL_Build_Rules>
     <ClCompile>
       <AdditionalIncludeDirectories>$(INTELOCLSDKROOT)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>

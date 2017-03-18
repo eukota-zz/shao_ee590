@@ -17,7 +17,7 @@
 #include "Tools.h"
 #include <CL/cl.h> 
 #include "Trie.h"
-
+#include "Stopwatch.h"
 
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS 
 #define SEPARATOR       ("----------------------------------------------------------------------\n") 
@@ -341,7 +341,9 @@ int sequential()
 {
 	//  Read patterns from patterns.txt; one pattern per line.
 
-	
+	Stopwatch stopwatch;
+	stopwatch.Start();
+
 	string buffer;
 	cl_int maxPatternLength = 0;
 
@@ -402,9 +404,7 @@ int sequential()
 	}
 
 
-	printf("Window API: running sequatial host code : \t%.2f ms", elapsed);
-	fout << "Time need for running sequential code : " << elapsed << " milliseconds" << endl;
-
+	stopwatch.Stop("Sequential Code Total Time");
 
 	// S - Output matching results
 	for (map<string, vector<cl_int>>::iterator it = result.begin(); it != result.end(); it++) {
@@ -425,11 +425,6 @@ int sequential()
 int parallel() {
 
 	cl_ulong start_time, end_time;			// Profiling Event Start and end Time
-	LARGE_INTEGER perfFrequency;
-	LARGE_INTEGER performanceCountNDRangeStart;
-	LARGE_INTEGER performanceCountNDRangeStop;
-
-
 
 	//———————————————————————————————————————————————————
 	// STEP 1: Discover and initialize the platforms
@@ -616,7 +611,8 @@ int parallel() {
 	printf("Enqueue the kernel for execution \n");
 
 	// Timing the clEnqueueNDRangeKernel call and timing information will be stored in timing_event
-	QueryPerformanceCounter(&performanceCountNDRangeStart);
+	Stopwatch stopwatch;
+	stopwatch.Start();
 	err = clEnqueueNDRangeKernel(commands, kernel, dim, NULL, global, NULL, 0, NULL, &prof_event);
 	if (CL_SUCCESS != err)
 	{
@@ -624,10 +620,8 @@ int parallel() {
 		ClearAllMemory();
 		return EXIT_FAILURE;
 	}
-
 	err = clFinish(commands);
-	QueryPerformanceCounter(&performanceCountNDRangeStop);
-	QueryPerformanceFrequency(&perfFrequency);
+	stopwatch.Lap("Ran kernel");
 	if (err != CL_SUCCESS)
 	{
 		printf("Error: clEnqueueNDRangeKernel failed to finish\n");
@@ -668,25 +662,6 @@ int parallel() {
 	clEnqueueReadBuffer(commands, bufferIndex, CL_TRUE, 0, datasize, parIndex, 0, NULL, NULL);
 	printf("\nRead output memory \n");
 	printf(SEPARATOR);
-
-	// Window API Time for Paralle codeSt
-	auto elapsed = 1000.0f*(float)(performanceCountNDRangeStop.QuadPart - performanceCountNDRangeStart.QuadPart) / (float)perfFrequency.QuadPart;
-	printf("Window API: running Kernel code : \t%.2f ms", elapsed);
-	printf("\n");
-
-
-	// Window API Time for sequential code
-	QueryPerformanceCounter(&performanceCountNDRangeStart);
-
-	//sequential code
-
-
-	QueryPerformanceCounter(&performanceCountNDRangeStop);
-	QueryPerformanceFrequency(&perfFrequency);
-
-	elapsed = 1000.0f*(float)(performanceCountNDRangeStop.QuadPart - performanceCountNDRangeStart.QuadPart) / (float)perfFrequency.QuadPart;
-
-
 
 	//———————————————————————————————————————————————————
 	// STEP 13: Release OpenCL resources
