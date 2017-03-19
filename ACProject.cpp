@@ -321,32 +321,45 @@ void ClearAllMemory() {
 
 }
 
-vector<string> patterns;
-ifstream patternInput("patterns.txt", ifstream::in);
-ifstream fin("input.txt", ifstream::in);
-cl_int threadNumber = 2; //change
-cl_int chunkSize = 0;
-//runs sequential code and then run parallel code
 
-
-int sequential()
+std::string ReadInputFile()
 {
-	Stopwatch stopwatch;
-	stopwatch.Start();
-	// Read Patterns
+	ifstream fin("input.txt", ifstream::in);
+	string input;
 	string buffer;
-	cl_int maxPatternLength = 0;
+	while (!fin.eof()) {
+		getline(fin, buffer);
+		input += buffer + '\n';
+	}
+	fin.close();
+	return input;
+}
+int ReadPatternFile(vector<string>* patterns)
+{
+	int maxPatternLength = 0;
+	ifstream patternInput("patterns.txt", ifstream::in);
+	string buffer;
 	while (!patternInput.eof()) {
 		getline(patternInput, buffer);
 		cl_int len = buffer.size();
 		if (len > 0) {
-			patterns.push_back(buffer);
+			patterns->push_back(buffer);
 			if (len > maxPatternLength) {
 				maxPatternLength = len;
 			}
 		}
 	}
 	patternInput.close();
+	return maxPatternLength;
+}
+
+int sequential()
+{
+	Stopwatch stopwatch;
+	stopwatch.Start();
+	// Read Patterns
+	vector<string> patterns;
+	cl_int maxPatternLength = ReadPatternFile(&patterns);
 
 	// Create State Matchine Trie
 	stopwatch.Lap("Starting State Machine");
@@ -354,38 +367,14 @@ int sequential()
 	defineFailures(stateMachine);
 	stopwatch.Lap("State Machine Started");
 	//printTree(stateMachine, "prefix");
-	
-	// Output Files
-	ofstream fout("output sequential.txt", ifstream::out);
-	string input;
-	while (!fin.eof()) {
-		getline(fin, buffer);
-		input += buffer + '\n';
-	}
-	fin.close();
 
+	ofstream fout("output sequential.txt", ifstream::out);
 	//fout << "Total length of input: " << input.size() << endl;
 	//fout << "Longest pattern length: " << maxPatternLength << endl;
 
 	map<string, vector<cl_int>> result;
-
-	cl_int chunkSizeWithoutOverlap = (input.size() + threadNumber - 1) / threadNumber;
-	chunkSize = chunkSizeWithoutOverlap + maxPatternLength - 1;
-	textChunk = (char*)_aligned_malloc(chunkSize * sizeof(char), 4096);
-
-	for (cl_int i = 0; i < threadNumber; i++) {
-		cl_int offset = chunkSizeWithoutOverlap * i;
-
-		string bufferChunk = input.substr(offset, chunkSize);
-
-		//fout << "Chunk " << i << " at length " << bufferChunk.size() << ":" << endl << bufferChunk << endl;
-		textChunk = bufferChunk.c_str();
-
-		scanText(bufferChunk.c_str(), stateMachine, offset, result);
-
-		// TODO pfac(bufferChunk.c_str(), patternsPtr, patterns.size(), /** output indicator */)
-
-	}
+	std::string input = ReadInputFile();
+	scanText(input.c_str(), stateMachine, 0, result);
 
 	float seqTime = stopwatch.Stop("Completed Seqential");
 	fout << "Time need for running sequential code : " << seqTime << " milliseconds" << endl;
@@ -409,9 +398,34 @@ int sequential()
 
 int parallel() {
 
-	cl_ulong start_time, end_time;			// Profiling Event Start and end Time
+	cl_ulong start_time, end_time;			
+	// Profiling Event Start and end Time
+	cl_int threadNumber = 2; //change
+	cl_int chunkSize = 0;
 
-											//———————————————————————————————————————————————————
+	// Create State Matchine Trie
+	vector<string> patterns;
+	cl_int maxPatternLength = ReadPatternFile(&patterns);
+	node* stateMachine = trie(patterns);
+	defineFailures(stateMachine);
+
+	std::string input = ReadInputFile();
+	cl_int chunkSizeWithoutOverlap = (input.size() + threadNumber - 1) / threadNumber;
+	chunkSize = chunkSizeWithoutOverlap + maxPatternLength - 1;
+	textChunk = (char*)_aligned_malloc(chunkSize * sizeof(char), 4096);
+
+	for (cl_int i = 0; i < threadNumber; i++) {
+		cl_int offset = chunkSizeWithoutOverlap * i;
+
+		string bufferChunk = input.substr(offset, chunkSize);
+
+		//fout << "Chunk " << i << " at length " << bufferChunk.size() << ":" << endl << bufferChunk << endl;
+		textChunk = bufferChunk.c_str();
+		// TODO pfac(bufferChunk.c_str(), patternsPtr, patterns.size(), /** output indicator */)
+	}
+
+
+	//———————————————————————————————————————————————————
 	// STEP 1: Discover and initialize the platforms
 	//———————————————————————————————————————————————————
 	// get Intel OpenCL platform 
@@ -482,7 +496,7 @@ int parallel() {
 	printf("\nCreating Buffer\n");
 
 	bufferBuffer = clCreateBuffer(context, CL_MEM_READ_ONLY, chunkSize*sizeof(char), NULL, &err);
-	bufferPatterns = clCreateBuffer(context, CL_MEM_READ_ONLY, patterns.size()*sizeof(char), NULL, &err);
+	//bufferPatterns = clCreateBuffer(context, CL_MEM_READ_ONLY, patterns.size()*sizeof(char), NULL, &err);
 	bufferNumberofPatterns = clCreateBuffer(context, CL_MEM_READ_ONLY, datasize, NULL, &err);
 	bufferIndex = clCreateBuffer(context, CL_MEM_READ_ONLY, datasize, NULL, &err);
 
